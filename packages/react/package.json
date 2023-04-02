@@ -5,6 +5,7 @@
   "dependencies": {
     "shared": "workspace:*"
   },
+  "module": "index.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },

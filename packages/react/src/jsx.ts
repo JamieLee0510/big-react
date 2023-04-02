@@ -1,5 +1,5 @@
 import { REACT_ELEMENT_TYPE } from "shared/ReactSymbols";
-import { ReactElement, Type, Key, Ref, Props } from "shared/ReactTypes";
+import { ReactElementType, Type, Key, Ref, Props } from "shared/ReactTypes";
 
 // 返回一個 ReactElement 的數據結構
 
@@ -8,7 +8,7 @@ const ReactElement = (
   key: Key,
   ref: Ref,
   props: Props
-): ReactElement => {
+): ReactElementType => {
   const element = {
     $$typeof: REACT_ELEMENT_TYPE,
     type,
