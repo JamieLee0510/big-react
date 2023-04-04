@@ -22,7 +22,7 @@ const ReactElement = (
 
 export const jsx = (type: Type, config: any, ...maybeChildren: any) => {
   let key: Key = null;
-  let props: Props = {};
+  const props: Props = {};
   let ref: Ref = null;
 
   for (const prop in config) {
@@ -59,4 +59,30 @@ export const jsx = (type: Type, config: any, ...maybeChildren: any) => {
 };
 
 // 實際上，React在dev和prod的環境中，jsx是不同的實現
-export const jsxDEV = jsx;
+export const jsxDEV = (type: Type, config: any) => {
+  let key: Key = null;
+  const props: Props = {};
+  let ref: Ref = null;
+
+  for (const prop in config) {
+    const val = config[prop];
+    if (prop === "key") {
+      if (val !== undefined) {
+        key = "" + val;
+      }
+      continue;
+    }
+    if (prop === "ref") {
+      if (val !== undefined) {
+        ref = val;
+      }
+      continue;
+    }
+    // 判斷是不是原型的 property
+    if ({}.hasOwnProperty.call(config, prop)) {
+      props[prop] = val;
+    }
+  }
+
+  return ReactElement(type, key, ref, props);
+};
