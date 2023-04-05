@@ -1,6 +1,8 @@
 import { Props, Key, Ref } from "shared/ReactTypes";
 import { WorkTag } from "./workTags";
 import { Flags, NoFlags } from "./fiberFlags";
+import { Container } from "hostConfig";
+
 export class FiberNode {
   tag: WorkTag;
   key: Key;
@@ -15,8 +17,10 @@ export class FiberNode {
   index: number;
 
   memoizedProps: Props | null;
+  memoizedState: any;
   alternate: FiberNode | null;
   flags: Flags;
+  updateQueue: unknown;
 
   constructor(tag: WorkTag, pendingProps: Props, key: Key) {
     // 作為實例
@@ -46,6 +50,8 @@ export class FiberNode {
     this.pendingProps = pendingProps;
     // 工作完後，props是什麼
     this.memoizedProps = null;
+    this.updateQueue = null;
+    this.memoizedState = null;
 
     this.alternate = null;
 
@@ -53,3 +59,51 @@ export class FiberNode {
     this.flags = NoFlags;
   }
 }
+
+export class FiberRootNode {
+  container: Container;
+  current: FiberNode;
+  finisedWork: FiberNode | null;
+
+  constructor(container: Container, hostRootFiber: FiberNode) {
+    this.container = container;
+    this.current = hostRootFiber;
+    // 把hostRootFiber的 HostComponent指向這個FiberRootNode實例
+    hostRootFiber.stateNode = this;
+
+    this.finisedWork = null;
+  }
+}
+
+// 由於Fiber是雙緩存機制，所以傳入current的話，那就要返回其alternate
+export const createWorkingProgress = (
+  current: FiberNode,
+  pendingProps: Props
+): FiberNode => {
+  let wip = current.alternate;
+
+  if (wip == null) {
+    // 首次渲染的話，workingProgress必為null；
+    // 在mount週期
+    wip = new FiberNode(current.tag, pendingProps, current.key);
+    wip.type = current.type;
+    wip.stateNode = current.stateNode;
+
+    wip.alternate = current;
+    current.alternate = wip;
+  } else {
+    // 在update週期
+    wip.pendingProps = pendingProps;
+
+    // 清除副作用
+    wip.flags = NoFlags;
+  }
+  // 這個可以回答，為什麼 updateQueue 是一個對象{shared:{pending:{}}}
+  // 因為這樣一來，workingProgerss和current可以共用一個updateQueue
+  wip.type = current.type;
+  wip.updateQueue = current.updateQueue;
+  wip.child = current.child;
+  wip.memoizedProps = current.memoizedProps;
+  wip.memoizedState = current.memoizedState;
+  return wip;
+};

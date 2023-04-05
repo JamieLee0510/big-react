@@ -1,4 +1,6 @@
 import { FiberNode } from "./fiber";
 
 // 遞歸中的歸
-export const completeWork = (fiber: FiberNode) => {};
+export const completeWork = (fiber: FiberNode) => {
+  // todo
+};
