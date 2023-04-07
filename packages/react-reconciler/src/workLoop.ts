@@ -46,6 +46,10 @@ function renderRoot(root: FiberRootNode) {
       workingProgress = null;
     }
   } while (true);
+
+  // 獲取更新好的workingProgress樹
+  const finishedWork = root.current.alternate;
+  root.finisedWork = finishedWork;
 }
 
 function workLoop() {

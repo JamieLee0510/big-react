@@ -20,6 +20,7 @@ export class FiberNode {
   memoizedState: any;
   alternate: FiberNode | null;
   flags: Flags;
+  subtreeFlags: Flags;
   updateQueue: unknown;
 
   constructor(tag: WorkTag, pendingProps: Props, key: Key) {
@@ -57,6 +58,7 @@ export class FiberNode {
 
     // 副作用
     this.flags = NoFlags;
+    this.subtreeFlags = NoFlags;
   }
 }
 
@@ -97,6 +99,7 @@ export const createWorkingProgress = (
 
     // 清除副作用
     wip.flags = NoFlags;
+    wip.subtreeFlags = NoFlags;
   }
   // 這個可以回答，為什麼 updateQueue 是一個對象{shared:{pending:{}}}
   // 因為這樣一來，workingProgerss和current可以共用一個updateQueue
