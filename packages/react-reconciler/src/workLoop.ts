@@ -1,6 +1,8 @@
 import { beginWork } from "./beginWork";
+import { commitMutationEffects } from "./commitWork";
 import { completeWork } from "./completeWork";
 import { createWorkingProgress, FiberNode, FiberRootNode } from "./fiber";
+import { MutationMask, NoFlags } from "./fiberFlags";
 import { HostRoot } from "./workTags";
 
 // 全局指針，指向正在工作的FiberNode
@@ -50,6 +52,44 @@ function renderRoot(root: FiberRootNode) {
   // 獲取更新好的workingProgress樹
   const finishedWork = root.current.alternate;
   root.finisedWork = finishedWork;
+
+  commitRoot(root);
+}
+
+function commitRoot(root: FiberRootNode) {
+  const finishedWork = root.finisedWork;
+
+  if (finishedWork === null) {
+    return;
+  }
+  if (__DEV__) {
+    console.log("commit階段開始---", finishedWork);
+  }
+
+  // 重置
+  // my ques:為什麼這樣不會造成淺拷貝也一起重置？
+  root.finisedWork = null;
+
+  // 判斷是否存在3個子階段需要執行的操作
+  // 從 root.flags 和 root.subTreeFlags
+  const subTreeHasEffect =
+    (finishedWork.subtreeFlags & MutationMask) !== NoFlags;
+  const rootHasEffect = (finishedWork.flags & MutationMask) !== NoFlags;
+
+  if (rootHasEffect || subTreeHasEffect) {
+    // beforeMutation
+    // mutation Flags：Placement
+    commitMutationEffects(finishedWork);
+
+    // 由於雙緩存機制，當workingProgress渲染到頁面中後
+    // 會變成current，然後等待下一次更新、創建新的wip fiberTree
+    root.current = finishedWork;
+
+    // layout
+  } else {
+    // 由於雙緩存機制
+    root.current = finishedWork;
+  }
 }
 
 function workLoop() {
