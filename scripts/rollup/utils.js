@@ -27,7 +27,7 @@ export function getPackageName(pkgName) {
 }
 
 export function getBaseRollupPlugins({
-  alias = { __DEV__: true },
+  alias = { __DEV__: true, preventAssignment: true },
   typescript = {},
 } = {}) {
   return [rollupReplace(alias), rollupCommonJS(), rollupTypescript(typescript)];
