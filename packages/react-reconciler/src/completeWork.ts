@@ -1,4 +1,5 @@
 import {
+  Container,
   appendInitialChild,
   createInstance,
   createTextInstance,
@@ -61,7 +62,7 @@ export const completeWork = (wip: FiberNode) => {
   }
 };
 
-function appendAllChildren(parent: FiberNode, wip: FiberNode) {
+function appendAllChildren(parent: Container, wip: FiberNode) {
   //在parent下插入workingProgress節點，但它不一定是一個dom節點
 
   let node = wip.stateNode;
