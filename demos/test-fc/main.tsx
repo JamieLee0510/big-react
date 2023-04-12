@@ -1,13 +1,13 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 
-const jsx = (
-  <div>
-    <span>hihi</span>
-  </div>
-);
+// const jsx = (
+//   <div>
+//     <span>hihi</span>
+//   </div>
+// );
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(jsx);
+// ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(jsx);
 
 function App() {
   return (
@@ -20,6 +20,6 @@ function Child() {
   return <span>big react</span>;
 }
 
-// ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-//   <App />
-// );
+ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+  <App />
+);

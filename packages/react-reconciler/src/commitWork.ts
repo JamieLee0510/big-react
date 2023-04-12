@@ -23,7 +23,7 @@ export const commitMutationEffects = (finishedWorked: FiberNode) => {
       // 向上DFS
       up: while (nextEffect !== null) {
         // 執行mutation
-        commitMutationEffectsOnFiber(nextEffect);
+        commitMutaitonEffectsOnFiber(nextEffect);
 
         // 找到了沒有effect flags的子節點，但還要檢查它的 sibling
         const sibling: FiberNode | null = nextEffect.sibling;
@@ -39,66 +39,53 @@ export const commitMutationEffects = (finishedWorked: FiberNode) => {
   }
 };
 
-const commitMutationEffectsOnFiber = (finishedWork: FiberNode) => {
+const commitMutaitonEffectsOnFiber = (finishedWork: FiberNode) => {
   const flags = finishedWork.flags;
 
   if ((flags & Placement) !== NoFlags) {
-    // 有Placement flag，處理placement操作，然後清除 placement flag
     commitPlacement(finishedWork);
     finishedWork.flags &= ~Placement;
   }
-
   // flags Update
-
   // flags ChildDeletion
 };
 
 const commitPlacement = (finishedWork: FiberNode) => {
-  // 要知道 partent dom，才知道要插入到哪裡
-  // 要知道 finisheWork 的dom，才知道要插入什麼
-
   if (__DEV__) {
-    console.warn("執行Placement操作--", finishedWork);
+    console.warn("执行Placement操作", finishedWork);
   }
-
-  // parent dom
+  // parent DOM
   const hostParent = getHostParent(finishedWork);
-
-  // 找到 finisheWork 的dom，然後 append 到 parent dom中
-  if (hostParent) {
+  // finishedWork ~~ DOM append parent DOM
+  if (hostParent !== null) {
     appendPlacementNodeIntoContainer(finishedWork, hostParent);
   }
 };
 
-const getHostParent = (fiber: FiberNode): Container | null => {
+function getHostParent(fiber: FiberNode): Container | null {
   let parent = fiber.return;
 
   while (parent) {
-    console.log("parent:", parent);
     const parentTag = parent.tag;
-
-    // HostComponent or HostRoot，才對應到宿主環境下的父級節點
-    if (parentTag == HostComponent) {
+    // HostComponent HostRoot
+    if (parentTag === HostComponent) {
       return parent.stateNode as Container;
     }
-
-    if (parentTag == HostRoot) {
-      // 這邊需要在看一下 FiberRootNode 的結構
-      return (parent.stateNode as FiberRootNode).container as Container;
+    if (parentTag === HostRoot) {
+      return (parent.stateNode as FiberRootNode).container;
     }
     parent = parent.return;
   }
-
   if (__DEV__) {
-    console.warn("未找到 host parent---", fiber);
+    console.warn("未找到host parent");
   }
   return null;
-};
+}
 
-const appendPlacementNodeIntoContainer = (
+function appendPlacementNodeIntoContainer(
   finishedWork: FiberNode,
   hostParent: Container
-) => {
+) {
   // fiber host
   if (finishedWork.tag === HostComponent || finishedWork.tag === HostText) {
     appendChildToContainer(hostParent, finishedWork.stateNode);
@@ -114,4 +101,4 @@ const appendPlacementNodeIntoContainer = (
       sibling = sibling.sibling;
     }
   }
-};
+}

@@ -114,7 +114,7 @@ function bubbleProperties(wip: FiberNode) {
     subtreeFlags |= child.subtreeFlags;
     subtreeFlags |= child.flags;
 
-    child.return = wip.child;
+    child.return = wip; // 這邊！！！
     child = child.sibling;
   }
   wip.subtreeFlags |= subtreeFlags;
