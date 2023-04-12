@@ -5,6 +5,8 @@ export type WorkTag =
   | typeof HostText;
 
 export const FunctionComponent = 0;
+
+// ReactDOM.render(HostRoot)
 export const HostRoot = 3;
 
 // <div>

@@ -2,7 +2,13 @@ import { ReactElementType } from "shared/ReactTypes";
 import { mountChildFibers, reconcileChildFibers } from "./childFibers";
 import { FiberNode } from "./fiber";
 import { processUpdateQueue, UpdateQueue } from "./updateQueue";
-import { HostComponent, HostRoot, HostText } from "./workTags";
+import {
+  FunctionComponent,
+  HostComponent,
+  HostRoot,
+  HostText,
+} from "./workTags";
+import { renderWithHooks } from "./fiberHooks";
 
 // 遞歸中的遞
 export const beginWork = (wip: FiberNode): FiberNode | null => {
@@ -21,6 +27,8 @@ export const beginWork = (wip: FiberNode): FiberNode | null => {
       // 因為它沒有子節點， 如<h1>hihi</h1>
       // HostText 就是 'hihi'
       return null;
+    case FunctionComponent:
+      return updateFunctionComponent(wip);
     default:
       if (__DEV__) {
         console.warn("beginWork 執行未定義的類型:", wip.tag);
@@ -31,6 +39,14 @@ export const beginWork = (wip: FiberNode): FiberNode | null => {
   return null;
 };
 
+function updateFunctionComponent(wip: FiberNode) {
+  // 函數組件的nextChild，就是本身的執行結果
+  const nextChildren = renderWithHooks(wip);
+
+  reconcileChildren(wip, nextChildren);
+  return wip.child;
+}
+
 function updateHostRoot(wip: FiberNode) {
   // 不過對首屏渲染而言，baseState為null
   const baseState = wip.memoizedState;
@@ -38,13 +54,13 @@ function updateHostRoot(wip: FiberNode) {
 
   // 獲取參與計算的update
   const pending = updateQueue.shared.pending;
+  // 計算完後，把update清空
+  updateQueue.shared.pending = null;
   // 取得最新狀態
   const { memorizedState } = processUpdateQueue(baseState, pending);
   wip.memoizedState = memorizedState;
-  // 計算完後，把update清空
-  updateQueue.shared.pending = null;
 
-  const nextChildren = memorizedState;
+  const nextChildren = wip.memoizedState;
 
   // 對比children的 current fiberNode和 ReactElement
   // 生成對應B的wip fiberNode
@@ -79,6 +95,7 @@ function reconcileChildren(wip: FiberNode, children?: ReactElementType) {
     // 這裡有個性能優化的點：
     // 如果一個一個對比，會造成多次的Placement；
     // 但如果是先生成好還沒掛載到HTML的DOM tree，然後再一次Placement
+
     wip.child = reconcileChildFibers(wip, current?.child, children);
   } else {
     // mount 流程

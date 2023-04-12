@@ -24,7 +24,13 @@ export const createUpdateQueue = <State>() => {
   } as UpdateQueue<State>;
 };
 
-// 更新UpdateQueue的方法
+/**
+ *
+ * @param updateQueue
+ * @param update
+ *
+ * 在UpdateQueue裡增加Update的方法
+ */
 export const enqueueUpdate = <State>(
   updateQueue: UpdateQueue<State>,
   update: Update<State>
@@ -32,7 +38,7 @@ export const enqueueUpdate = <State>(
   updateQueue.shared.pending = update;
 };
 
-// 消費UpdateQueue的方法
+// 消費UpdateQueue的方法，返回一個全新的狀態（State）
 export const processUpdateQueue = <State>(
   baseState: State,
   pendingUpdate: Update<State> | null

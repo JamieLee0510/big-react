@@ -4,8 +4,8 @@
   "description": "",
   "module": "index.ts",
   "dependencies": {
-    "shared": "worksplace:*",
-    "react-reconciler": "worksplace:*"
+    "shared": "workspace:*",
+    "react-reconciler": "workspace:*"
   },
   "peerDependencies": {
     "react": "worksplace:*"
