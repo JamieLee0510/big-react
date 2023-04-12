@@ -4,7 +4,7 @@ import { MutationMask, NoFlags, Placement } from "./fiberFlags";
 import { HostComponent, HostRoot, HostText } from "./workTags";
 
 // 由於要遞歸遍歷 finishedWorked（為父節點） 中的Effect，
-// 所以設一個全局變量
+// 所以設一個全局變量，指向下一個 fiberNode
 let nextEffect: FiberNode | null = null;
 
 export const commitMutationEffects = (finishedWorked: FiberNode) => {
@@ -20,33 +20,37 @@ export const commitMutationEffects = (finishedWorked: FiberNode) => {
       // 繼續向下遍歷，直到找到沒有effect flags 的節點
       nextEffect = child;
     } else {
-      // 找到了沒有effect flags的子節點，但還要檢查它的 sibling
+      // 向上DFS
       up: while (nextEffect !== null) {
         // 執行mutation
         commitMutationEffectsOnFiber(nextEffect);
 
+        // 找到了沒有effect flags的子節點，但還要檢查它的 sibling
         const sibling: FiberNode | null = nextEffect.sibling;
         if (sibling !== null) {
           nextEffect = sibling;
           // break up-loop 之後，就會繼續外層的循環
           break up;
-        } else {
-          // 沒有 sibling 就向上
-          nextEffect = nextEffect.return;
         }
+        // 沒有 sibling 就向上
+        nextEffect = nextEffect.return;
       }
     }
   }
 };
 
-const commitMutationEffectsOnFiber = (finisheWork: FiberNode) => {
-  const flags = finisheWork.flags;
+const commitMutationEffectsOnFiber = (finishedWork: FiberNode) => {
+  const flags = finishedWork.flags;
 
   if ((flags & Placement) !== NoFlags) {
     // 有Placement flag，處理placement操作，然後清除 placement flag
-    commitPlacement(finisheWork);
-    finisheWork.flags &= ~Placement;
+    commitPlacement(finishedWork);
+    finishedWork.flags &= ~Placement;
   }
+
+  // flags Update
+
+  // flags ChildDeletion
 };
 
 const commitPlacement = (finishedWork: FiberNode) => {
@@ -58,20 +62,22 @@ const commitPlacement = (finishedWork: FiberNode) => {
   }
 
   // parent dom
-  const parentDom = getHostParent(finishedWork);
+  const hostParent = getHostParent(finishedWork);
 
   // 找到 finisheWork 的dom，然後 append 到 parent dom中
-  if (parentDom) {
-    appendPlacementNodeIntoContainer(finishedWork, parentDom);
+  if (hostParent) {
+    appendPlacementNodeIntoContainer(finishedWork, hostParent);
   }
 };
 
 const getHostParent = (fiber: FiberNode): Container | null => {
   let parent = fiber.return;
 
-  while (parent !== null) {
+  while (parent) {
+    console.log("parent:", parent);
     const parentTag = parent.tag;
 
+    // HostComponent or HostRoot，才對應到宿主環境下的父級節點
     if (parentTag == HostComponent) {
       return parent.stateNode as Container;
     }

@@ -24,15 +24,17 @@ export class FiberNode {
   updateQueue: unknown;
 
   constructor(tag: WorkTag, pendingProps: Props, key: Key) {
-    // 作為實例
+    // 作為實例的屬性
     this.tag = tag;
+
     this.key = key;
     // HostComponent, <div> div DOM
     this.stateNode = null;
-    // if FunctionComponent, ()=>{}
+
+    // if FunctionComponent, ()=>{}，就是function本身
     this.type = null;
 
-    // 構成樹狀結構
+    // 構成樹狀結構，節點之間的關係
     // 指向父FiberNode
     this.return = null;
     // 指向兄弟節點
@@ -54,6 +56,7 @@ export class FiberNode {
     this.updateQueue = null;
     this.memoizedState = null;
 
+    // 用於切換current fibernodes 和 workInProgress
     this.alternate = null;
 
     // 副作用
@@ -65,7 +68,7 @@ export class FiberNode {
 export class FiberRootNode {
   container: Container;
   current: FiberNode;
-  finisedWork: FiberNode | null;
+  finishedWork: FiberNode | null; //已經遞歸完成的FiberNode
 
   constructor(container: Container, hostRootFiber: FiberNode) {
     this.container = container;
@@ -73,24 +76,22 @@ export class FiberRootNode {
     // 把hostRootFiber的 HostComponent指向這個FiberRootNode實例
     hostRootFiber.stateNode = this;
 
-    this.finisedWork = null;
+    this.finishedWork = null;
   }
 }
 
-// 由於Fiber是雙緩存機制，所以傳入current的話，那就要返回其alternate
-export const createWorkingProgress = (
+/* 由於Fiber是雙緩存機制，所以傳入current的話，那就要返回其alternate*/
+export const createworkInProgress = (
   current: FiberNode,
   pendingProps: Props
 ): FiberNode => {
   let wip = current.alternate;
 
   if (wip == null) {
-    // 首次渲染的話，workingProgress必為null；
+    // 首次渲染的話，workInProgress必為null；
     // 在mount週期
     wip = new FiberNode(current.tag, pendingProps, current.key);
-    wip.type = current.type;
     wip.stateNode = current.stateNode;
-
     wip.alternate = current;
     current.alternate = wip;
   } else {
@@ -124,5 +125,7 @@ export function createFiberFromElement(element: ReactElementType): FiberNode {
     console.warn("未定義的tag類型:", type);
   }
   const fiber = new FiberNode(fiberTag, props, key);
+  fiber.type = type;
+
   return fiber;
 }

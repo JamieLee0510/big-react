@@ -13,7 +13,6 @@ function ChildrenReconciler(shouldTrackSideEffect: boolean) {
   ) {
     // 根據element(ReactElement)來創建Fiber，然後返回
     const fiber = createFiberFromElement(element);
-
     // 將fiber的父節點設定好
     fiber.return = returnFiber;
     return fiber;
@@ -47,6 +46,7 @@ function ChildrenReconciler(shouldTrackSideEffect: boolean) {
     newChild?: ReactElementType
   ) {
     // 判斷當前fiber類型
+
     if (typeof newChild == "object" && newChild !== null) {
       switch (newChild.$$typeof) {
         case REACT_ELEMENT_TYPE:
@@ -62,7 +62,7 @@ function ChildrenReconciler(shouldTrackSideEffect: boolean) {
     // TODO: 多節點的情況，如：ul->li*3,
 
     // HostText
-    if (typeof newChild == "string" && newChild !== null) {
+    if (typeof newChild == "string" || typeof newChild === "number") {
       return placeSingleChild(
         reconcileSingleTextNode(returnFiber, currentFiber, newChild)
       );

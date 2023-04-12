@@ -9,13 +9,15 @@ import {
   enqueueUpdate,
   UpdateQueue,
 } from "./updateQueue";
-import { scheduteUpdateOnFiber } from "./workLoop";
+import { scheduleUpdateOnFiber } from "./workLoop";
 import { HostRoot } from "./workTags";
 
 // 在createRoot時，執行createContainer
 export const createContainer = (container: Container) => {
   const hostRootFiber = new FiberNode(HostRoot, {}, null);
   const root = new FiberRootNode(container, hostRootFiber);
+
+  // 串接更新機制
   hostRootFiber.updateQueue = createUpdateQueue();
   return root;
 };
@@ -32,6 +34,6 @@ export const updateContainer = (
     hostRootFiber.updateQueue as UpdateQueue<ReactElementType | null>,
     update
   );
-  scheduteUpdateOnFiber(hostRootFiber);
+  scheduleUpdateOnFiber(hostRootFiber);
   return element;
 };
