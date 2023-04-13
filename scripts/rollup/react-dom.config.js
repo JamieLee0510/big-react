@@ -1,7 +1,8 @@
 import { resolvePkgPath, getPackageName, getBaseRollupPlugins } from "./utils";
 import rollupGeneratePkgJson from "rollup-plugin-generate-package-json";
 import rollupAlias from "@rollup/plugin-alias";
-const { name, module } = getPackageName("react-dom");
+
+const { name, module, peerDependencies } = getPackageName("react-dom");
 const pkgPath = resolvePkgPath(name);
 const pkgDistPath = resolvePkgPath(name, true);
 
@@ -24,6 +25,8 @@ export default [
           format: "umd",
         },
       ],
+    // 讓react-dom中不要有react的代碼（打包排除）
+    external: [...Object.keys(peerDependencies)],
     plugins: [
       ...getBaseRollupPlugins(),
       // deal with alias
