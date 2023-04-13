@@ -1,3 +1,4 @@
+import { Dispatch } from "react/src/currentDispatcher";
 import { Action } from "shared/ReactTypes";
 
 export interface Update<State> {
@@ -8,6 +9,8 @@ export interface UpdateQueue<State> {
   shared: {
     pending: Update<State> | null;
   };
+  // 為了兼容hook的更新流程
+  dispatch: Dispatch<State> | null;
 }
 
 // 創建一個Update的實例
@@ -21,6 +24,7 @@ export const createUpdateQueue = <State>() => {
     shared: {
       pending: null,
     },
+    dispatch: null,
   } as UpdateQueue<State>;
 };
 
