@@ -1,5 +1,6 @@
 {
   "compileOnSave": true,
+
   "compilerOptions": {
     "target": "ESNext",
     "useDefineForClassFields": true,
@@ -21,6 +22,6 @@
       "hostConfig": ["./react-dom/src/hostConfig.ts"]
     }
   },
-  "include": ["./packages/"],
+  "include": ["./packages/**/*"],
   "exclude": []
 }

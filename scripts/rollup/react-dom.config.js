@@ -7,7 +7,7 @@ const pkgPath = resolvePkgPath(name);
 const pkgDistPath = resolvePkgPath(name, true);
 
 export default [
-  // react
+  // react-dom
   {
     input: `${pkgPath}/${module}`,
     output:
@@ -15,13 +15,29 @@ export default [
       [
         {
           file: `${pkgDistPath}/index.js`,
-          name: "index.js",
+          name: "ReactDOM",
           format: "umd",
         },
         // import ReactDOM from 'react-dom/client'
         {
           file: `${pkgDistPath}/client.js`,
-          name: "client.js",
+          name: "client",
+          format: "umd",
+        },
+      ],
+
+    external: ["react", "react-dom"],
+    plugins: [...getBaseRollupPlugins()],
+  },
+  // test-utils
+  {
+    input: `${pkgPath}/test-utils.ts`,
+    output:
+      // 為了兼容React17和React18的導出，所以打包兩份
+      [
+        {
+          file: `${pkgDistPath}/test-utils.js`,
+          name: "testUtils",
           format: "umd",
         },
       ],
