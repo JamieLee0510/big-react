@@ -5,13 +5,17 @@ import {
   createTextInstance,
 } from "hostConfig";
 import { FiberNode } from "./fiber";
-import { Flags, NoFlags } from "./fiberFlags";
+import { Flags, NoFlags, Update } from "./fiberFlags";
 import {
   FunctionComponent,
   HostComponent,
   HostRoot,
   HostText,
 } from "./workTags";
+
+function markUpdate(fiber: FiberNode) {
+  fiber.flags |= Update;
+}
 
 // 遞歸中的歸
 export const completeWork = (wip: FiberNode) => {
@@ -45,6 +49,12 @@ export const completeWork = (wip: FiberNode) => {
       if (current !== null && wip.stateNode) {
         // 對於HostComponent來說，stateNode保存的是對應的dom節點
         // 此為update的情況
+        const oldText = current.memoizedProps.content;
+        const newText = newProps.content;
+
+        if (oldText !== newText) {
+          markUpdate(wip);
+        }
       } else {
         // 首屏渲染
 
