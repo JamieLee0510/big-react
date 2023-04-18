@@ -23,6 +23,9 @@ export class FiberNode {
   subtreeFlags: Flags;
   updateQueue: unknown;
 
+  // 存放在更新階段需要被刪除的子fibers
+  deletions: FiberNode[] | null;
+
   constructor(tag: WorkTag, pendingProps: Props, key: Key) {
     // 作為實例的屬性
     this.tag = tag;
@@ -62,6 +65,8 @@ export class FiberNode {
     // 副作用
     this.flags = NoFlags;
     this.subtreeFlags = NoFlags;
+
+    this.deletions = null;
   }
 }
 
@@ -101,6 +106,8 @@ export const createworkInProgress = (
     // 清除副作用
     wip.flags = NoFlags;
     wip.subtreeFlags = NoFlags;
+
+    wip.deletions = null;
   }
   // 這個可以回答，為什麼 updateQueue 是一個對象{shared:{pending:{}}}
   // 因為這樣一來，workingProgerss和current可以共用一個updateQueue

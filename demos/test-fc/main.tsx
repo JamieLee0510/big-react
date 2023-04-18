@@ -10,7 +10,8 @@ import ReactDOM from "react-dom/client";
 // ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(jsx);
 
 function App() {
-  const [num] = useState(100);
+  const [num, setSum] = useState(100);
+  window.setSum = setSum;
   return (
     <div>
       {num}

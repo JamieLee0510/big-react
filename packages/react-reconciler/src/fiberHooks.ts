@@ -6,6 +6,7 @@ import {
   createUpdate,
   createUpdateQueue,
   enqueueUpdate,
+  processUpdateQueue,
 } from "./updateQueue";
 import { Action } from "shared/ReactTypes";
 import { scheduleUpdateOnFiber } from "./workLoop";
@@ -13,6 +14,9 @@ import { scheduleUpdateOnFiber } from "./workLoop";
 let currentlyRenderingFiber: FiberNode | null = null;
 
 let workInProgressHook: Hook | null = null;
+
+// 主要是為了在update流程中，暫存之前的hook結果
+let currentHook: Hook | null = null;
 
 const { currentDispatcher } = internal;
 
@@ -33,6 +37,7 @@ export function renderWithHooks(wip: FiberNode) {
 
   if (current !== null) {
     // udpate狀態
+    currentDispatcher.current = hooksDispatchOnUpdate;
   } else {
     // mount狀態
     currentDispatcher.current = hooksDispatchOnMount;
@@ -48,6 +53,10 @@ export function renderWithHooks(wip: FiberNode) {
 
 const hooksDispatchOnMount: Dispatcher = {
   useState: mountState,
+};
+
+const hooksDispatchOnUpdate: Dispatcher = {
+  useState: updateState,
 };
 
 function mountState<State>(
@@ -71,6 +80,20 @@ function mountState<State>(
   queue.dispatch = dispatch;
 
   return [memoizedState, dispatch];
+}
+function updateState<State>(): [State, Dispatch<State>] {
+  // 第一步：找到當前useState對應的hook數據
+  const hook = updateWorkInProgressHook();
+
+  // 第二步：計算新 state 的邏輯
+  const queue = hook.updateQueue as UpdateQueue<State>;
+  const pending = queue.shared.pending;
+
+  if (pending !== null) {
+    const { memorizedState } = processUpdateQueue(hook.memoizedState, pending);
+    hook.memoizedState = memorizedState;
+  }
+  return [hook.memoizedState, queue.dispatch as Dispatch<State>];
 }
 
 function dispatchSetState<State>(
@@ -113,6 +136,60 @@ function mountWorkInProgressHook(): Hook {
     workInProgressHook.next = hook;
     // 接下來的看不懂@@
     workInProgressHook = hook;
+  }
+  return workInProgressHook;
+}
+
+function updateWorkInProgressHook(): Hook {
+  // TODO: render階段觸發的更新
+
+  // 用來保存下一個hook
+  let nextCurrentHook: Hook | null = null;
+
+  if (currentHook == null) {
+    // 代表這是FC update的時候的第一個hook，hooks 鏈表中的頭
+    const current = currentlyRenderingFiber?.alternate;
+    if (current !== null) {
+      nextCurrentHook = current?.memoizedState;
+    } else {
+      nextCurrentHook = null;
+    }
+  } else {
+    // 代表進入FC update時，後續的hook
+    nextCurrentHook = currentHook.next;
+  }
+
+  // TODO: 懂了這裡，就懂了hook的邏輯
+  if (nextCurrentHook == null) {
+    // mount/update hook1 hook2 hook3
+    // update       hook1 hook2 hook3 hook4
+    // 照理說，hook應該要一一對應
+    throw new Error(
+      `組件 ${currentlyRenderingFiber?.type} 本次執行的hook比上次執行多`
+    );
+  }
+
+  currentHook = nextCurrentHook;
+  const newHook: Hook = {
+    memoizedState: currentHook?.memoizedState,
+    updateQueue: currentHook?.updateQueue,
+    next: null,
+  };
+
+  // 更新WIP
+  if (workInProgressHook == null) {
+    // 代表為mount階段，而且是第一個hook
+    if (currentlyRenderingFiber == null) {
+      throw new Error("請在函數組件內調用hook");
+    } else {
+      workInProgressHook = newHook;
+      currentlyRenderingFiber.memoizedState = workInProgressHook;
+    }
+  } else {
+    // mount 時後續的hook
+    workInProgressHook.next = newHook;
+    // 接下來的看不懂@@
+    workInProgressHook = newHook;
   }
   return workInProgressHook;
 }
