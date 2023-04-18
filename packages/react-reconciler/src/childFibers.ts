@@ -37,8 +37,9 @@ function ChildrenReconciler(shouldTrackSideEffect: boolean) {
       // update階段
 
       if (currentFiber.key === key) {
+        // key相同時
         if (element.$$typeof === REACT_ELEMENT_TYPE) {
-          if (currentFiber.type === element.$$typeof) {
+          if (currentFiber.type === element.type) {
             // type相同，直接複用
             const existing = useFiber(currentFiber, element.props);
             existing.return = returnFiber;
