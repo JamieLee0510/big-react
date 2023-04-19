@@ -12,6 +12,7 @@ import {
   HostRoot,
   HostText,
 } from "./workTags";
+import { updateFiberProps } from "react-dom/src/SyntheticEvent";
 
 function markUpdate(fiber: FiberNode) {
   fiber.flags |= Update;
@@ -29,12 +30,17 @@ export const completeWork = (wip: FiberNode) => {
       if (current !== null && wip.stateNode) {
         // 對於HostComponent來說，stateNode保存的是對應的dom節點
         // 此為update的情況
+        // step1: 判斷props是否變化，ex: {onClick:xx} -->{onClick:xxx}
+        // step2: 如有變，標記 Update flag
+        // 但是，除了onClick，還要判斷許多如 className、style等等的變化，先略過
+        // 直接調用 updateFiberProps 來一次簡單更新
+        updateFiberProps(wip.stateNode, newProps);
       } else {
         // 首屏渲染
         // 因為這裡抽象較高，必須透過宿主環境來創建實例
         // 1. 創建DOM
         // const instance = createInstance(wip.type, newProps);
-        const instance = createInstance(wip.type);
+        const instance = createInstance(wip.type, newProps);
         // 2. 將DOM節點插入到DOM樹中
         appendAllChildren(instance, wip);
         wip.stateNode = instance;
