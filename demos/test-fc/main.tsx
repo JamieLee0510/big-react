@@ -11,11 +11,14 @@ import ReactDOM from "react-dom/client";
 
 function App() {
   const [num, setSum] = useState(100);
-  window.setSum = setSum;
+
   return (
-    <div>
+    <div
+      onClick={() => {
+        setSum(num + 1);
+      }}
+    >
       {num}
-      {/* <Child /> */}
     </div>
   );
 }
