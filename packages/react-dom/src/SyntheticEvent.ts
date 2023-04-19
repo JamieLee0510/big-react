@@ -25,7 +25,6 @@ export interface DOMElement extends Element {
 }
 
 export function updateFiberProps(node: DOMElement, props: Props) {
-  console.log("updateFiberProps: ", props);
   node[elementPropsKey] = props;
 }
 
@@ -55,8 +54,7 @@ function dispatchEvent(container: Container, eventType: string, e: Event) {
     console.warn("事件target不存在:", e);
     return;
   }
-  console.log("collectPath, eventTarget:", eventTarget);
-  console.log("collectPath, container:", container);
+
   // step1: 遍歷container，沿途收集事件
   const { capture, bubble } = collectPath(
     eventTarget as DOMElement,
@@ -69,8 +67,8 @@ function dispatchEvent(container: Container, eventType: string, e: Event) {
   // step3: 遍歷capture
   triggerEventFlow(capture, se);
 
-  // step4: 遍歷bubble
-  if (se.__stopPropagation) {
+  // step4: 遍歷bubble, 如果允許冒泡才遍歷bubble
+  if (!se.__stopPropagation) {
     triggerEventFlow(bubble, se);
   }
 }
@@ -97,6 +95,7 @@ function createSyntheticEvent(e: Event): SystheticEvent {
   systheticEvent.__stopPropagation = false;
 
   const originStopPropagation = e.stopPropagation;
+
   systheticEvent.stopPropagation = () => {
     systheticEvent.__stopPropagation = true;
     if (originStopPropagation) {
@@ -124,7 +123,6 @@ function collectPath(
   };
 
   while (targetElement && targetElement !== container) {
-    console.log("in collectPath loop");
     // 收集過程
     const elementProp = targetElement[elementPropsKey];
     if (elementProp) {
