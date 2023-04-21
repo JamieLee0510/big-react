@@ -1,4 +1,4 @@
-import { REACT_ELEMENT_TYPE } from "shared/ReactSymbols";
+import { REACT_ELEMENT_TYPE, REACT_FRAGMENT_TYPE } from "shared/ReactSymbols";
 import { ReactElementType, Type, Key, Ref, Props } from "shared/ReactTypes";
 
 // 返回一個 ReactElement 的數據結構
@@ -86,6 +86,8 @@ export const jsxDEV = (type: Type, config: any) => {
 
   return ReactElement(type, key, ref, props);
 };
+
+export const Fragment = REACT_FRAGMENT_TYPE;
 
 export function isValidElement(element: any) {
   return (

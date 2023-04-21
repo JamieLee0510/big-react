@@ -1,12 +1,13 @@
-import { REACT_ELEMENT_TYPE } from "shared/ReactSymbols";
-import { Props, ReactElementType } from "shared/ReactTypes";
+import { REACT_ELEMENT_TYPE, REACT_FRAGMENT_TYPE } from "shared/ReactSymbols";
+import { Key, Props, ReactElementType } from "shared/ReactTypes";
 import {
   createFiberFromElement,
+  createFiberFromFragment,
   createworkInProgress,
   FiberNode,
 } from "./fiber";
 import { ChildDeletion, Placement } from "./fiberFlags";
-import { HostText } from "./workTags";
+import { HostText, Fragment } from "./workTags";
 
 type ExistingChildren = Map<string | number, FiberNode>;
 
@@ -51,12 +52,19 @@ function ChildrenReconciler(shouldTrackSideEffect: boolean) {
     while (currentFiber !== null) {
       // update階段
 
+      // 判斷能否複用
       if (currentFiber.key === key) {
         // key相同時
         if (element.$$typeof === REACT_ELEMENT_TYPE) {
           if (currentFiber.type === element.type) {
+            // 判斷是否為Fragment
+            let props = element.props;
+            if (element.type === REACT_FRAGMENT_TYPE) {
+              props = element.props.children;
+            }
+
             // type相同，直接複用
-            const existing = useFiber(currentFiber, element.props);
+            const existing = useFiber(currentFiber, props);
             existing.return = returnFiber;
 
             // 當前節點可複用，標記剩下的節點刪除
@@ -81,23 +89,16 @@ function ChildrenReconciler(shouldTrackSideEffect: boolean) {
     }
 
     // 根據element(ReactElement)來創建Fiber，然後返回
-    const fiber = createFiberFromElement(element);
+    let fiber;
+    if (element.type === REACT_FRAGMENT_TYPE) {
+      fiber = createFiberFromFragment(element.props.children, key);
+    } else {
+      fiber = createFiberFromElement(element);
+    }
+
     // 將fiber的父節點設定好
     fiber.return = returnFiber;
     return fiber;
-  }
-
-  /**
-   * 複用fiber的方法。由於是調用 createworkInProgress 方法
-   * 所以會是在 current 和 wip 之間重複使用
-   * @param fiber 要複用的fiber
-   * @param pendingProps 更新的props
-   */
-  function useFiber(fiber: FiberNode, pendingProps: Props): FiberNode {
-    const clone = createworkInProgress(fiber, pendingProps);
-    clone.index = 0;
-    clone.sibling = null;
-    return clone;
   }
 
   function reconcileSingleTextNode(
@@ -240,6 +241,15 @@ function ChildrenReconciler(shouldTrackSideEffect: boolean) {
     if (typeof element === "object" && element !== null) {
       switch (element.$$typeof) {
         case REACT_ELEMENT_TYPE:
+          if (element.type === REACT_FRAGMENT_TYPE) {
+            return updateFragment(
+              returnFiber,
+              before,
+              element,
+              keyToUse,
+              existingChildren
+            );
+          }
           if (before) {
             // key相同，type相同，可複用
             if (before.type == element.type) {
@@ -254,17 +264,44 @@ function ChildrenReconciler(shouldTrackSideEffect: boolean) {
         console.warn("還未實現數組類型的 newChild");
       }
     }
+
+    // 這個情況是，children array裡面有 ReactElement、還有array嵌套
+    // 就直接當作fragment處理
+    if (Array.isArray(element)) {
+      return updateFragment(
+        returnFiber,
+        before,
+        element,
+        keyToUse,
+        existingChildren
+      );
+    }
     return null;
   }
 
   return function reconcileChildFibers(
     returnFiber: FiberNode,
     currentFiber: FiberNode | null,
-    newChild?: ReactElementType
+    newChild?: any // React原版的 newChild支持很多類型
   ) {
-    // 判斷當前fiber類型
+    // 判斷Fragment
+    const isUnkeyedTopLevelFragment =
+      typeof newChild === "object" &&
+      newChild !== null &&
+      newChild.type === REACT_FRAGMENT_TYPE &&
+      newChild.key === null;
+    // 組件根節點為Fragment
+    if (isUnkeyedTopLevelFragment) {
+      newChild = newChild.props.children;
+    }
 
+    // 判斷當前fiber類型
     if (typeof newChild == "object" && newChild !== null) {
+      // 多節點的情況，如：ul->li*3,
+      if (Array.isArray(newChild)) {
+        return reconcileChildrenArray(returnFiber, currentFiber, newChild);
+      }
+
       switch (newChild.$$typeof) {
         case REACT_ELEMENT_TYPE:
           return placeSingleChild(
@@ -274,11 +311,6 @@ function ChildrenReconciler(shouldTrackSideEffect: boolean) {
           if (__DEV__) {
             console.warn("未實現的reconcile類型:", newChild);
           }
-      }
-
-      // 多節點的情況，如：ul->li*3,
-      if (Array.isArray(newChild)) {
-        return reconcileChildrenArray(returnFiber, currentFiber, newChild);
       }
     }
 
@@ -291,7 +323,7 @@ function ChildrenReconciler(shouldTrackSideEffect: boolean) {
 
     // 兜底刪除的情
     if (currentFiber !== null) {
-      deleteChild(returnFiber, currentFiber);
+      deleteRemainChildren(returnFiber, currentFiber);
     }
 
     if (__DEV__) {
@@ -299,6 +331,46 @@ function ChildrenReconciler(shouldTrackSideEffect: boolean) {
     }
     return null;
   };
+}
+
+/**
+ * 複用fiber的方法。由於是調用 createworkInProgress 方法
+ * 所以會是在 current 和 wip 之間重複使用
+ * @param fiber 要複用的fiber
+ * @param pendingProps 更新的props
+ */
+function useFiber(fiber: FiberNode, pendingProps: Props): FiberNode {
+  const clone = createworkInProgress(fiber, pendingProps);
+  clone.index = 0;
+  clone.sibling = null;
+  return clone;
+}
+
+/**
+ *  判斷Fragment是否能複用
+ * @param returnFiber 父fiber
+ * @param current 判斷是否要複用的fiber
+ * @param elements fragment下的children
+ * @param key 判斷複用的key
+ * @param existingChildren 前fiberNode集合
+ * @returns
+ */
+function updateFragment(
+  returnFiber: FiberNode,
+  current: FiberNode | undefined,
+  elements: any[],
+  key: Key,
+  existingChildren: ExistingChildren
+) {
+  let fiber;
+  if (!current || current.tag !== Fragment) {
+    fiber = createFiberFromFragment(elements, key);
+  } else {
+    existingChildren.delete(key);
+    fiber = useFiber(current, elements);
+  }
+  fiber.return = returnFiber;
+  return fiber;
 }
 
 export const reconcileChildFibers = ChildrenReconciler(true);
