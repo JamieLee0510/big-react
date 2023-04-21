@@ -7,6 +7,7 @@ import {
 import { FiberNode } from "./fiber";
 import { Flags, NoFlags, Update } from "./fiberFlags";
 import {
+  Fragment,
   FunctionComponent,
   HostComponent,
   HostRoot,
@@ -80,7 +81,9 @@ export const completeWork = (wip: FiberNode) => {
     case FunctionComponent:
       bubbleProperties(wip);
       return null;
-
+    case Fragment:
+      bubbleProperties(wip);
+      return null;
     default:
       if (__DEV__) {
         console.warn("未處理的completeWork情況:", wip);

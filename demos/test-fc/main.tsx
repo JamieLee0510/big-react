@@ -18,6 +18,18 @@ function App() {
       : [<li key="3">3</li>, <li key="2">2</li>, <li key="1">1</li>];
 
   return (
+    <ul
+      onClick={() => {
+        setSum(num + 1);
+      }}
+    >
+      <li>5</li>
+      <li>6</li>
+      {arr}
+    </ul>
+  );
+
+  return (
     <div
       onClick={() => {
         setSum(num + 1);

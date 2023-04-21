@@ -3,6 +3,7 @@ import { mountChildFibers, reconcileChildFibers } from "./childFibers";
 import { FiberNode } from "./fiber";
 import { processUpdateQueue, UpdateQueue } from "./updateQueue";
 import {
+  Fragment,
   FunctionComponent,
   HostComponent,
   HostRoot,
@@ -29,6 +30,8 @@ export const beginWork = (wip: FiberNode): FiberNode | null => {
       return null;
     case FunctionComponent:
       return updateFunctionComponent(wip);
+    case Fragment:
+      return updateFragment(wip);
     default:
       if (__DEV__) {
         console.warn("beginWork 執行未定義的類型:", wip.tag);
@@ -42,6 +45,14 @@ export const beginWork = (wip: FiberNode): FiberNode | null => {
 function updateFunctionComponent(wip: FiberNode) {
   // 函數組件的nextChild，就是本身的執行結果
   const nextChildren = renderWithHooks(wip);
+
+  reconcileChildren(wip, nextChildren);
+  return wip.child;
+}
+
+function updateFragment(wip: FiberNode) {
+  // pendingProps裡面就有一個children屬性，就可以當作Fragment的children
+  const nextChildren = wip.pendingProps;
 
   reconcileChildren(wip, nextChildren);
   return wip.child;

@@ -75,7 +75,7 @@ const commitMutaitonEffectsOnFiber = (finishedWork: FiberNode) => {
     const deletions = finishedWork.deletions;
     if (deletions !== null) {
       deletions.forEach((childToDelete) => {
-        commitDelete(childToDelete);
+        commitDeletion(childToDelete);
       });
     }
 
@@ -83,26 +83,57 @@ const commitMutaitonEffectsOnFiber = (finishedWork: FiberNode) => {
   }
 };
 
-const commitDelete = (childToDelete: FiberNode) => {
+/**
+ * 為了找到在Fragment下同級的所有節點
+ * @param rootChildrenToDelete
+ * @param unmountFiber
+ */
+function recordHostChildrenToDelete(
+  rootChildrenToDelete: FiberNode[],
+  unmountFiber: FiberNode
+) {
+  // step1: 找到第一個 root host 節點
+  const lastOne = rootChildrenToDelete[rootChildrenToDelete.length - 1];
+  if (!lastOne) {
+    rootChildrenToDelete.push(unmountFiber);
+  } else {
+    let node = lastOne.sibling;
+    while (node !== null) {
+      if (node === unmountFiber) {
+        rootChildrenToDelete.push(unmountFiber);
+      }
+      node = node.sibling;
+    }
+  }
+  // step2: 找到每一個 host 節點，看他是不是跟第一個root host 節點同級，如果同級代表為兄弟節點
+}
+
+const commitDeletion = (childToDelete: FiberNode) => {
   /**
    * 对于FC，需要处理useEffect unmout执行、解绑ref
    * 对于HostComponent，需要解绑ref
    * 对于子树的根HostComponent，需要移除DOM
    */
-  let rootHostNode: FiberNode | null = null;
+
+  // 為了考慮要刪除Fragment時、下面有多個FiberNode，所以用Array
+  const rootChildrenToDelete: FiberNode[] = [];
+
+  // const rootHostNode: FiberNode | null = null;
   // 遞歸子樹的操作
   commitNestedComponent(childToDelete, (unmountFiber) => {
     switch (unmountFiber.tag) {
       case HostComponent:
-        if (rootHostNode == null) {
-          rootHostNode = unmountFiber;
-        }
+        recordHostChildrenToDelete(rootChildrenToDelete, unmountFiber);
+        // if (rootHostNode == null) {
+        //   rootHostNode = unmountFiber;
+        // }
         // TODO:解綁 ref
         return;
       case HostText:
-        if (rootHostNode == null) {
-          rootHostNode = unmountFiber;
-        }
+        recordHostChildrenToDelete(rootChildrenToDelete, unmountFiber);
+        // if (rootHostNode == null) {
+        //   rootHostNode = unmountFiber;
+        // }
         return;
       case FunctionComponent:
         // TODO: useEffect unMount處理
@@ -113,10 +144,18 @@ const commitDelete = (childToDelete: FiberNode) => {
   });
 
   // 移除 rootHostNode 的 DOM
-  if (rootHostNode !== null) {
+  // if (rootHostNode !== null) {
+  //   const hostParent = getHostParent(childToDelete);
+  //   if (hostParent !== null) {
+  //     removeChild((rootHostNode as FiberNode).stateNode, hostParent);
+  //   }
+  // }
+  if (rootChildrenToDelete.length) {
     const hostParent = getHostParent(childToDelete);
     if (hostParent !== null) {
-      removeChild((rootHostNode as FiberNode).stateNode, hostParent);
+      rootChildrenToDelete.forEach((node) => {
+        removeChild(node.stateNode, hostParent);
+      });
     }
   }
   childToDelete.return = null;
