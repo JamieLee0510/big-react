@@ -52,9 +52,7 @@ export const completeWork = (wip: FiberNode) => {
       // 構建離屏DOM樹
       // 1. 創建DOM
       // 2. 將DOM節點插入到DOM樹中
-      console.log("inot HostText!");
-      console.log("current !== null ?", current !== null);
-      console.log("wip.stateNode!==null", wip.stateNode);
+
       if (current !== null && wip.stateNode) {
         // 對於HostComponent來說，stateNode保存的是對應的dom節點
         // 此為update的情況
@@ -62,7 +60,6 @@ export const completeWork = (wip: FiberNode) => {
         const newText = newProps.content;
 
         if (oldText !== newText) {
-          console.log("oldText !== newText!");
           markUpdate(wip);
         }
       } else {

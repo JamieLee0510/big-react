@@ -20,7 +20,9 @@ function App() {
   return (
     <ul
       onClick={() => {
-        setSum(num + 1);
+        setSum((num) => num + 1);
+        setSum((num) => num + 1);
+        setSum((num) => num + 1);
       }}
     >
       <li>5</li>

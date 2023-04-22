@@ -3,6 +3,7 @@ import { commitMutationEffects } from "./commitWork";
 import { completeWork } from "./completeWork";
 import { createworkInProgress, FiberNode, FiberRootNode } from "./fiber";
 import { MutationMask, NoFlags } from "./fiberFlags";
+import { Lane, mergeLane } from "./fiberLanes";
 import { HostRoot } from "./workTags";
 
 // 全局指針，指向正在工作的FiberNode
@@ -14,15 +15,20 @@ function prepareFreshStack(root: FiberRootNode) {
 }
 
 /* 用來連結Container和renderRoot方法 */
-export function scheduleUpdateOnFiber(fiber: FiberNode) {
+export function scheduleUpdateOnFiber(fiber: FiberNode, lane: Lane) {
   // TODO:調度功能
 
-  const root = markUpdateFromFiberToRoot(fiber);
+  const root = markUpdateFromFiberToRoot(fiber) as FiberRootNode;
+  markRootUpdate(root, lane);
   renderRoot(root);
 }
 
+function markRootUpdate(root: FiberRootNode, lane: Lane) {
+  root.pendingLanes = mergeLane(root.pendingLanes, lane);
+}
+
 /* 向上遍歷到根Fiber，返回根FiberRootNode */
-function markUpdateFromFiberToRoot(fiber: FiberNode) {
+function markUpdateFromFiberToRoot(fiber: FiberNode): FiberRootNode | null {
   let node = fiber;
   let parent = node.return;
   while (parent !== null) {
@@ -66,7 +72,7 @@ function commitRoot(root: FiberRootNode) {
     return;
   }
   if (__DEV__) {
-    console.log("commit階段開始---", finishedWork);
+    console.warn("commit階段開始---", finishedWork);
   }
 
   // 重置

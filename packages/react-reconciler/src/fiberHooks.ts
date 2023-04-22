@@ -10,6 +10,7 @@ import {
 } from "./updateQueue";
 import { Action } from "shared/ReactTypes";
 import { scheduleUpdateOnFiber } from "./workLoop";
+import { requestUpdateLanes } from "./fiberLanes";
 
 let currentlyRenderingFiber: FiberNode | null = null;
 
@@ -101,9 +102,10 @@ function dispatchSetState<State>(
   updateQueue: UpdateQueue<State>,
   action: Action<State>
 ) {
-  const update = createUpdate(action);
+  const lane = requestUpdateLanes();
+  const update = createUpdate(action, lane);
   enqueueUpdate(updateQueue, update);
-  scheduleUpdateOnFiber(fiber);
+  scheduleUpdateOnFiber(fiber, lane);
 
   // 下面是HostRoot 的首次渲染流程，基本上可以做比對
   // 因為dispatchSetState也是要接入reconciler的更新流程
