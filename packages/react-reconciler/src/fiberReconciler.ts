@@ -11,6 +11,7 @@ import {
 } from "./updateQueue";
 import { scheduleUpdateOnFiber } from "./workLoop";
 import { HostRoot } from "./workTags";
+import { requestUpdateLanes } from "./fiberLanes";
 
 // 在createRoot時，執行createContainer
 export const createContainer = (container: Container) => {
@@ -28,12 +29,13 @@ export const updateContainer = (
   root: FiberRootNode
 ) => {
   const hostRootFiber = root.current;
-  const update = createUpdate<ReactElementType | null>(element);
+  const lane = requestUpdateLanes();
+  const update = createUpdate<ReactElementType | null>(element, lane);
 
   enqueueUpdate(
     hostRootFiber.updateQueue as UpdateQueue<ReactElementType | null>,
     update
   );
-  scheduleUpdateOnFiber(hostRootFiber);
+  scheduleUpdateOnFiber(hostRootFiber, lane);
   return element;
 };

@@ -25,7 +25,7 @@ function ChildrenReconciler(shouldTrackSideEffect: boolean) {
     } else {
       deletions.push(childToDelete);
       // TODO: 這裡的指針是指向同一個嗎？
-      console.log(returnFiber.deletions);
+      // console.log(returnFiber.deletions);
     }
   }
   function deleteRemainChildren(

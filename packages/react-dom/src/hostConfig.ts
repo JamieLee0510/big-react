@@ -32,7 +32,7 @@ export const commitUpdate = (fiber: FiberNode) => {
   switch (fiber.tag) {
     case HostText:
       const text = fiber.memoizedProps.content;
-      console.log("commitUpdate, text:", text);
+
       return commitTextUpdate(fiber.stateNode, text);
     default:
       console.warn("未實現的 Update 類型：", fiber);
@@ -57,3 +57,15 @@ export function insertChildToContainer(
 ) {
   container.insertBefore(child, before);
 }
+
+/**
+ * 假如當前宿主環境支持 queueMicrotask ---> 返回 queueMicrotask；
+ * 假如當前宿主環境支持 Promise ---> 返回一個Promise、裡面包callback；
+ * 假如都沒有支持，就使用 setTimeout 宏任務
+ */
+export const scheduleMicroTask =
+  typeof queueMicrotask === "function"
+    ? queueMicrotask
+    : typeof Promise === "function"
+    ? (callback: (...args: any) => void) => Promise.resolve(null).then(callback)
+    : setTimeout;

@@ -10,10 +10,13 @@ import {
 } from "./updateQueue";
 import { Action } from "shared/ReactTypes";
 import { scheduleUpdateOnFiber } from "./workLoop";
+import { Lane, NoLane, requestUpdateLanes } from "./fiberLanes";
 
 let currentlyRenderingFiber: FiberNode | null = null;
 
 let workInProgressHook: Hook | null = null;
+
+let renderLane: Lane = NoLane;
 
 // 主要是為了在update流程中，暫存之前的hook結果
 let currentHook: Hook | null = null;
@@ -27,11 +30,14 @@ export interface Hook {
   next: Hook | null; // 下一個hook，所以hook是一個鏈表
 }
 
-export function renderWithHooks(wip: FiberNode) {
+export function renderWithHooks(wip: FiberNode, lane: Lane) {
   // 賦值current fiber
   currentlyRenderingFiber = wip;
   // 重置hook的操作
   wip.memoizedState = null;
+
+  // 賦值 render lane
+  renderLane = lane;
 
   const current = wip.alternate;
 
@@ -47,7 +53,9 @@ export function renderWithHooks(wip: FiberNode) {
   const props = wip.pendingProps;
   const children = Component(props);
 
+  // 重置操作
   currentlyRenderingFiber = null;
+  renderLane = NoLane;
   return children;
 }
 
@@ -88,9 +96,14 @@ function updateState<State>(): [State, Dispatch<State>] {
   // 第二步：計算新 state 的邏輯
   const queue = hook.updateQueue as UpdateQueue<State>;
   const pending = queue.shared.pending;
+  queue.shared.pending = null;
 
   if (pending !== null) {
-    const { memorizedState } = processUpdateQueue(hook.memoizedState, pending);
+    const { memorizedState } = processUpdateQueue(
+      hook.memoizedState,
+      pending,
+      renderLane
+    );
     hook.memoizedState = memorizedState;
   }
   return [hook.memoizedState, queue.dispatch as Dispatch<State>];
@@ -101,9 +114,10 @@ function dispatchSetState<State>(
   updateQueue: UpdateQueue<State>,
   action: Action<State>
 ) {
-  const update = createUpdate(action);
+  const lane = requestUpdateLanes();
+  const update = createUpdate(action, lane);
   enqueueUpdate(updateQueue, update);
-  scheduleUpdateOnFiber(fiber);
+  scheduleUpdateOnFiber(fiber, lane);
 
   // 下面是HostRoot 的首次渲染流程，基本上可以做比對
   // 因為dispatchSetState也是要接入reconciler的更新流程
