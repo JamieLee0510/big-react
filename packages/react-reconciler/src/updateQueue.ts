@@ -70,20 +70,37 @@ export const enqueueUpdate = <State>(
  **/
 export const processUpdateQueue = <State>(
   baseState: State,
-  pendingUpdate: Update<State> | null
+  pendingUpdate: Update<State> | null,
+  renderLane: Lane
 ): { memorizedState: State } => {
   const result: ReturnType<typeof processUpdateQueue<State>> = {
     memorizedState: baseState,
   };
   if (pendingUpdate !== null) {
-    const action = pendingUpdate.action;
-    if (action instanceof Function) {
-      // baseState:1,  action:(x)=>x+1, memorizedState= 2
-      result.memorizedState = action(baseState);
-    } else {
-      // baseState:1,  action:3, memorizedState= 3
-      result.memorizedState = action;
-    }
+    // 獲取第一個update
+    const first = pendingUpdate.next;
+    let pending = pendingUpdate.next as Update<any>;
+    // update現為一個鏈表，所以需要遍歷
+    do {
+      const updateLane = pending?.lane;
+
+      if (updateLane === renderLane) {
+        const action = pending.action;
+        if (action instanceof Function) {
+          // baseState:1,  action:(x)=>x+1, memorizedState= 2
+          baseState = action(baseState);
+        } else {
+          // baseState:1,  action:3, memorizedState= 3
+          baseState = action;
+        }
+      } else {
+        if (__DEV__) {
+          console.error("不應該進入 processUpdateQueue 邏輯");
+        }
+      }
+      pending = pending.next as Update<any>;
+    } while (pending !== first);
   }
+  result.memorizedState = baseState;
   return result;
 };

@@ -1,17 +1,30 @@
+import { scheduleMicroTask } from "hostConfig";
 import { beginWork } from "./beginWork";
 import { commitMutationEffects } from "./commitWork";
 import { completeWork } from "./completeWork";
 import { createworkInProgress, FiberNode, FiberRootNode } from "./fiber";
 import { MutationMask, NoFlags } from "./fiberFlags";
-import { Lane, mergeLane } from "./fiberLanes";
+import {
+  getHighestPriorityLane,
+  Lane,
+  markRootFinished,
+  mergeLane,
+  NoLane,
+  SyncLane,
+} from "./fiberLanes";
+import { flushSyncCallbacks, scheduleSyncCallback } from "./syncTaskQueue";
 import { HostRoot } from "./workTags";
 
 // 全局指針，指向正在工作的FiberNode
 let workInProgress: FiberNode | null = null;
 
-function prepareFreshStack(root: FiberRootNode) {
+// 全局變量，代表本次更新的lane是什麼
+let wipRootRenderLane: Lane = NoLane;
+
+function prepareFreshStack(root: FiberRootNode, lane: Lane) {
   // 因為FiberRootNode不能直接拿來當workInProgress
   workInProgress = createworkInProgress(root.current, {});
+  wipRootRenderLane = lane;
 }
 
 /* 用來連結Container和renderRoot方法 */
@@ -20,7 +33,31 @@ export function scheduleUpdateOnFiber(fiber: FiberNode, lane: Lane) {
 
   const root = markUpdateFromFiberToRoot(fiber) as FiberRootNode;
   markRootUpdate(root, lane);
-  renderRoot(root);
+  ensureRootIsScheduled(root);
+}
+
+/**
+ * 保證root fiber在被調度中。
+ * 基本上就是調度階段的入口
+ * @param root fiberRoot
+ */
+function ensureRootIsScheduled(root: FiberRootNode) {
+  const updateLane = getHighestPriorityLane(root.pendingLanes);
+  if (updateLane === NoLane) {
+    // 代表當前沒有要更新
+    return;
+  }
+  if (updateLane === SyncLane) {
+    // 同步優先級，用微任務調度
+    if (__DEV__) {
+      console.log("在微任務中調度，優先級:", updateLane);
+    }
+    // 為何要用 bind？因為要把函數當作傳參、同時函數裡還要綁定入參
+    scheduleSyncCallback(performSyncOnRoot.bind(null, root, updateLane));
+    scheduleMicroTask(flushSyncCallbacks);
+  } else {
+    // TODO: 其他優先級，會用宏任務調度
+  }
 }
 
 function markRootUpdate(root: FiberRootNode, lane: Lane) {
@@ -41,9 +78,21 @@ function markUpdateFromFiberToRoot(fiber: FiberNode): FiberRootNode | null {
   return null;
 }
 
-function renderRoot(root: FiberRootNode) {
-  // // 初始化，把wip指向第一個FiberNode
-  prepareFreshStack(root);
+function performSyncOnRoot(root: FiberRootNode, lane: Lane) {
+  const nextLane = getHighestPriorityLane(root.pendingLanes);
+  if (nextLane !== SyncLane) {
+    // 比 SyncLane 更低優先級的lane
+    // 或為 NoLane
+    ensureRootIsScheduled(root);
+    return;
+  }
+
+  if (__DEV__) {
+    console.warn("render 階段開始");
+  }
+
+  // 初始化，把wip指向第一個FiberNode
+  prepareFreshStack(root, lane);
 
   do {
     try {
@@ -61,6 +110,11 @@ function renderRoot(root: FiberRootNode) {
   const finishedWork = root.current.alternate;
   root.finishedWork = finishedWork;
 
+  // 保存本次消費的 lane
+  root.finishedLane = lane;
+  // 重置全局lane
+  wipRootRenderLane = NoLane;
+
   // wip fiberNode樹 樹中的flags
   commitRoot(root);
 }
@@ -74,10 +128,16 @@ function commitRoot(root: FiberRootNode) {
   if (__DEV__) {
     console.warn("commit階段開始---", finishedWork);
   }
+  const lane = root.finishedLane;
+  if (lane === NoLane && __DEV__) {
+    console.error("commit階段, finishedLane不應該是NoLane");
+  }
 
   // 重置
   // my ques:為什麼這樣不會造成淺拷貝也一起重置？
   root.finishedWork = null;
+  root.finishedLane = NoLane;
+  markRootFinished(root, lane);
 
   // 判斷是否存在3個子階段需要執行的操作
   // 從 root.flags 和 root.subTreeFlags
@@ -108,7 +168,7 @@ function workLoop() {
 }
 
 function preformUnitOfWork(fiber: FiberNode) {
-  const next = beginWork(fiber); // next可能是fiber的子fiber，也可能是null
+  const next = beginWork(fiber, wipRootRenderLane); // next可能是fiber的子fiber，也可能是null
   fiber.memoizedProps = fiber.pendingProps;
 
   if (next === null) {

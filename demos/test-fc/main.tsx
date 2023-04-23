@@ -25,9 +25,7 @@ function App() {
         setSum((num) => num + 1);
       }}
     >
-      <li>5</li>
-      <li>6</li>
-      {arr}
+      <li>{num}</li>
     </ul>
   );
 

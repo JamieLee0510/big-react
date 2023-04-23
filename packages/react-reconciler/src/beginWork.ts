@@ -10,16 +10,20 @@ import {
   HostText,
 } from "./workTags";
 import { renderWithHooks } from "./fiberHooks";
+import { Lane } from "./fiberLanes";
 
 // 遞歸中的遞
-export const beginWork = (wip: FiberNode): FiberNode | null => {
+export const beginWork = (
+  wip: FiberNode,
+  renderLane: Lane
+): FiberNode | null => {
   // 比較新舊fiber，返回子fiber
 
   switch (wip.tag) {
     case HostRoot:
       // 計算狀態的最新值
       // 創造子fiberNode
-      return updateHostRoot(wip);
+      return updateHostRoot(wip, renderLane);
 
     case HostComponent:
       // 創造子fiberNode
@@ -29,7 +33,7 @@ export const beginWork = (wip: FiberNode): FiberNode | null => {
       // HostText 就是 'hihi'
       return null;
     case FunctionComponent:
-      return updateFunctionComponent(wip);
+      return updateFunctionComponent(wip, renderLane);
     case Fragment:
       return updateFragment(wip);
     default:
@@ -42,9 +46,9 @@ export const beginWork = (wip: FiberNode): FiberNode | null => {
   return null;
 };
 
-function updateFunctionComponent(wip: FiberNode) {
+function updateFunctionComponent(wip: FiberNode, renderLane: Lane) {
   // 函數組件的nextChild，就是本身的執行結果
-  const nextChildren = renderWithHooks(wip);
+  const nextChildren = renderWithHooks(wip, renderLane);
 
   reconcileChildren(wip, nextChildren);
   return wip.child;
@@ -58,7 +62,7 @@ function updateFragment(wip: FiberNode) {
   return wip.child;
 }
 
-function updateHostRoot(wip: FiberNode) {
+function updateHostRoot(wip: FiberNode, renderLane: Lane) {
   // 不過對首屏渲染而言，baseState為null
   const baseState = wip.memoizedState;
   const updateQueue = wip.updateQueue as UpdateQueue<Element>;
@@ -68,7 +72,7 @@ function updateHostRoot(wip: FiberNode) {
   // 計算完後，把update清空
   updateQueue.shared.pending = null;
   // 取得最新狀態
-  const { memorizedState } = processUpdateQueue(baseState, pending);
+  const { memorizedState } = processUpdateQueue(baseState, pending, renderLane);
   wip.memoizedState = memorizedState;
 
   const nextChildren = wip.memoizedState;
