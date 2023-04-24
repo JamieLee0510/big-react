@@ -9,6 +9,11 @@ export const useState: Dispatcher["useState"] = (initState) => {
   return dispatcher.useState(initState);
 };
 
+export const useEffect: Dispatcher["useEffect"] = (create, deps) => {
+  const dispatcher = resolveDispatcher();
+  return dispatcher.useEffect(create, deps);
+};
+
 // 內部hook的數據共享層，主要是為了解耦react和reconciler的hook數據
 export const _SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED_ = {
   currentDispatcher,
