@@ -11,6 +11,8 @@ import {
 import { Action } from "shared/ReactTypes";
 import { scheduleUpdateOnFiber } from "./workLoop";
 import { Lane, NoLane, requestUpdateLanes } from "./fiberLanes";
+import { Flags, PassiveEffect } from "./fiberFlags";
+import { HookHasEffect, Passive } from "./hookEffectTags";
 
 let currentlyRenderingFiber: FiberNode | null = null;
 
@@ -30,11 +32,28 @@ export interface Hook {
   next: Hook | null; // 下一個hook，所以hook是一個鏈表
 }
 
+// useEffect下的數據結構
+export interface Effect {
+  tags: Flags;
+  create: EffectCallback | void;
+  destroy: EffectCallback | void;
+  deps: EffectDeps;
+  next: Effect | null;
+}
+type EffectCallback = () => void;
+type EffectDeps = any[] | null;
+
+export interface FCUpdateQueue<State> extends UpdateQueue<State> {
+  lastEffect: Effect | null; // 指向最後一個Effect，而它的next便會指向第一個
+}
+
 export function renderWithHooks(wip: FiberNode, lane: Lane) {
   // 賦值current fiber
   currentlyRenderingFiber = wip;
   // 重置hook的操作
   wip.memoizedState = null;
+  // 重置effect鏈表
+  wip.updateQueue = null;
 
   // 賦值 render lane
   renderLane = lane;
@@ -51,21 +70,144 @@ export function renderWithHooks(wip: FiberNode, lane: Lane) {
 
   const Component = wip.type;
   const props = wip.pendingProps;
+
+  // FC render
   const children = Component(props);
 
   // 重置操作
   currentlyRenderingFiber = null;
+  workInProgressHook = null;
+  currentHook = null;
   renderLane = NoLane;
   return children;
 }
 
 const hooksDispatchOnMount: Dispatcher = {
   useState: mountState,
+  useEffect: mountEffect,
 };
 
 const hooksDispatchOnUpdate: Dispatcher = {
   useState: updateState,
+  useEffect: updateEffect,
 };
+
+function mountEffect(create: EffectCallback | void, deps: EffectDeps | void) {
+  // 第一步：找到當前第一個hook
+  const hook = mountWorkInProgressHook();
+
+  const nextDeps = deps === undefined ? null : deps;
+
+  // 在當前fiber 的 flag 中增加 PassiveEffect
+  (currentlyRenderingFiber as FiberNode).flags |= PassiveEffect;
+
+  hook.memoizedState = pushEffect(
+    Passive | HookHasEffect,
+    create,
+    undefined,
+    nextDeps
+  );
+}
+
+/**
+ * 跟mountEffect的差別，什麼時候增加 PassiveEffect flag？依賴有變化的情況
+ * @param create
+ * @param deps
+ */
+function updateEffect(create: EffectCallback | void, deps: EffectDeps | void) {
+  // 第一步：找到當前第一個hook
+  const hook = updateWorkInProgressHook();
+  const nextDeps = deps === undefined ? null : deps;
+  let destroy: EffectCallback | void;
+
+  if (currentHook !== null) {
+    const prevEffect = currentHook.memoizedState as Effect;
+    destroy = prevEffect.destroy;
+    if (nextDeps !== null) {
+      const prevDeps = prevEffect.deps;
+
+      // 淺比較,相等的話，代表依賴沒有變化，所以不需要更新
+      if (areHookInputsEqual(nextDeps, prevDeps)) {
+        hook.memoizedState = pushEffect(Passive, create, destroy, nextDeps);
+        return;
+      }
+    }
+    // 淺比較，不相等
+    // 在當前fiber 的 flag 中增加 PassiveEffect
+    (currentlyRenderingFiber as FiberNode).flags |= PassiveEffect;
+    // 標記這個副作用要執行
+    hook.memoizedState = pushEffect(
+      Passive | HookHasEffect,
+      create,
+      destroy,
+      nextDeps
+    );
+  }
+}
+
+/**
+ * 淺比較 舊依賴 和 新依賴有沒有變化
+ * @param newDeps
+ * @param prevDeps
+ * @returns 是否相等
+ */
+function areHookInputsEqual(newDeps: EffectDeps, prevDeps: EffectDeps) {
+  if (newDeps === null || prevDeps === null) {
+    return false;
+  }
+  for (let i = 0; i < newDeps.length && i < prevDeps.length; i++) {
+    if (Object.is(prevDeps[i], newDeps[i])) {
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
+
+/**
+ * 在當前的effect 環狀列表中，插入新的effect
+ * @param hookFlags
+ * @param create
+ * @param destroy
+ * @param deps
+ * @returns
+ */
+function pushEffect(
+  hookFlags: Flags,
+  create: EffectCallback | void,
+  destroy: EffectCallback | void,
+  deps: EffectDeps
+): Effect {
+  const effect = {
+    tags: hookFlags,
+    create,
+    destroy,
+    deps,
+    next: null,
+  } as Effect;
+  const fiber = currentlyRenderingFiber as FiberNode;
+  const updateQueue = fiber.updateQueue as FCUpdateQueue<any>;
+  if (updateQueue === null) {
+    const initUpdateQueue = createFCUpdateQueue();
+    fiber.updateQueue = initUpdateQueue;
+    effect.next = effect;
+    initUpdateQueue.lastEffect = effect;
+  } else {
+    // 插入effect
+    if (updateQueue.lastEffect === null) {
+      effect.next = effect;
+      updateQueue.lastEffect = effect;
+    } else {
+      // 取出first
+      const firstEffect = updateQueue.lastEffect.next;
+
+      updateQueue.lastEffect.next = effect;
+      effect.next = firstEffect;
+      updateQueue.lastEffect = effect;
+    }
+  }
+  return effect;
+}
 
 function mountState<State>(
   initialState: State | (() => State)
@@ -206,4 +348,10 @@ function updateWorkInProgressHook(): Hook {
     workInProgressHook = newHook;
   }
   return workInProgressHook;
+}
+
+function createFCUpdateQueue<State>() {
+  const updateQueue = createUpdateQueue<State>() as FCUpdateQueue<State>;
+  updateQueue.lastEffect = null;
+  return updateQueue;
 }

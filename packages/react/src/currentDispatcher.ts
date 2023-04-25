@@ -2,6 +2,7 @@ import { Action } from "shared/ReactTypes";
 
 export interface Dispatcher {
   useState: <T>(initState: (() => T) | T) => [T, Dispatch<T>];
+  useEffect: (callback: () => void | void, deps: any[] | void) => void;
   // 其他的所有hooks
 }
 

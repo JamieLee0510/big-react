@@ -1,9 +1,24 @@
+import {
+  unstable_scheduleCallback as scheduleCallback,
+  unstable_NormalPriority as NormalPriority,
+} from "scheduler";
+
 import { scheduleMicroTask } from "hostConfig";
 import { beginWork } from "./beginWork";
-import { commitMutationEffects } from "./commitWork";
+import {
+  commitHookEffectListCreate,
+  commitHookEffectListDestroy,
+  commitHookEffectListUnmount,
+  commitMutationEffects,
+} from "./commitWork";
 import { completeWork } from "./completeWork";
-import { createworkInProgress, FiberNode, FiberRootNode } from "./fiber";
-import { MutationMask, NoFlags } from "./fiberFlags";
+import {
+  createworkInProgress,
+  FiberNode,
+  FiberRootNode,
+  PendingPassiveEffect,
+} from "./fiber";
+import { MutationMask, NoFlags, PassiveMask } from "./fiberFlags";
 import {
   getHighestPriorityLane,
   Lane,
@@ -14,12 +29,16 @@ import {
 } from "./fiberLanes";
 import { flushSyncCallbacks, scheduleSyncCallback } from "./syncTaskQueue";
 import { HostRoot } from "./workTags";
+import { HookHasEffect, Passive } from "./hookEffectTags";
 
 // 全局指針，指向正在工作的FiberNode
 let workInProgress: FiberNode | null = null;
 
 // 全局變量，代表本次更新的lane是什麼
 let wipRootRenderLane: Lane = NoLane;
+
+// 全局flag，為了調度useEffect的回調
+let rootDoesHasPassiveEffects = false;
 
 function prepareFreshStack(root: FiberRootNode, lane: Lane) {
   // 因為FiberRootNode不能直接拿來當workInProgress
@@ -139,6 +158,23 @@ function commitRoot(root: FiberRootNode) {
   root.finishedLane = NoLane;
   markRootFinished(root, lane);
 
+  // 檢查目前fiber樹中，函數組件是否需要執行useEffect回調
+  if (
+    (finishedWork.flags && PassiveMask) !== NoFlags ||
+    (finishedWork.subtreeFlags && PassiveMask) !== NoFlags
+  ) {
+    // 防止執行多次commitRoot操作
+    if (!rootDoesHasPassiveEffects) {
+      rootDoesHasPassiveEffects = true;
+
+      // 目前可以簡單理解為：在一個setTimeout中執行了一個回調
+      scheduleCallback(NormalPriority, () => {
+        // 執行副作用
+        flushPassiveEffect(root.pendingPassiveEffects);
+        return;
+      });
+    }
+  }
   // 判斷是否存在3個子階段需要執行的操作
   // 從 root.flags 和 root.subTreeFlags
   const subTreeHasEffect =
@@ -148,7 +184,7 @@ function commitRoot(root: FiberRootNode) {
   if (rootHasEffect || subTreeHasEffect) {
     // beforeMutation
     // mutation Flags：Placement
-    commitMutationEffects(finishedWork);
+    commitMutationEffects(finishedWork, root);
 
     // 由於雙緩存機制，當workInProgress渲染到頁面中後
     // 會變成current，然後等待下一次更新、創建新的wip fiberTree
@@ -159,6 +195,37 @@ function commitRoot(root: FiberRootNode) {
     // 由於雙緩存機制
     root.current = finishedWork;
   }
+
+  rootDoesHasPassiveEffects = false;
+  // TODO: 重新調度root
+  ensureRootIsScheduled(root);
+}
+
+/**
+ * 執行useEffect副作用
+ * @param pendingPassiveEffects
+ */
+function flushPassiveEffect(pendingPassiveEffects: PendingPassiveEffect) {
+  // 順序：必須照子->父執行完destroy回調，再執行其他回調
+
+  pendingPassiveEffects.unmount.forEach((effect) => {
+    commitHookEffectListUnmount(Passive, effect);
+  });
+  pendingPassiveEffects.unmount = [];
+
+  // 為何要遍歷兩次？因為在本次更新的任何回調都必須在 上一次更新的destroy回調執行完後 再執行
+  pendingPassiveEffects.update.forEach((effect) => {
+    // Passive | HookHasEffect,代表不僅要是useEffect、而且還有副作用的更新才能觸發
+    commitHookEffectListDestroy(Passive | HookHasEffect, effect);
+  });
+  pendingPassiveEffects.update.forEach((effect) => {
+    // Passive | HookHasEffect,代表不僅要是useEffect、而且還有副作用的更新才能觸發
+    commitHookEffectListCreate(Passive | HookHasEffect, effect);
+  });
+  pendingPassiveEffects.update = [];
+
+  // 由於在執行useEffect中，也有可能執行到setState，所以也必須執行flushSyncCallbacks
+  flushSyncCallbacks();
 }
 
 function workLoop() {
