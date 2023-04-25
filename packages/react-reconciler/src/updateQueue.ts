@@ -45,7 +45,6 @@ export const enqueueUpdate = <State>(
   updateQueue: UpdateQueue<State>,
   update: Update<State>
 ) => {
-  console.warn(`enqueueUpdate~`);
   //updateQueue.shared.pending = update; // 這邊只是覆蓋pending，但多次更新需要存放所有的update
   const pending = updateQueue.shared.pending;
   if (pending == null) {

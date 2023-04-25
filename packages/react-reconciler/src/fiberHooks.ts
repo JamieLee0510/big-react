@@ -52,6 +52,8 @@ export function renderWithHooks(wip: FiberNode, lane: Lane) {
   currentlyRenderingFiber = wip;
   // 重置hook的操作
   wip.memoizedState = null;
+  // 重置effect鏈表
+  wip.updateQueue = null;
 
   // 賦值 render lane
   renderLane = lane;
@@ -78,13 +80,15 @@ export function renderWithHooks(wip: FiberNode, lane: Lane) {
 
 const hooksDispatchOnMount: Dispatcher = {
   useState: mountState,
+  useEffect: mountEffect,
 };
 
 const hooksDispatchOnUpdate: Dispatcher = {
   useState: updateState,
+  useEffect: updateEffect,
 };
 
-function mountEffect<State>(create: EffectCallback | void, deps: EffectDeps) {
+function mountEffect(create: EffectCallback | void, deps: EffectDeps | void) {
   // 第一步：找到當前第一個hook
   const hook = mountWorkInProgressHook();
 
@@ -97,10 +101,73 @@ function mountEffect<State>(create: EffectCallback | void, deps: EffectDeps) {
     Passive | HookHasEffect,
     create,
     undefined,
-    deps
+    nextDeps
   );
 }
 
+/**
+ * 跟mountEffect的差別，什麼時候增加 PassiveEffect flag？依賴有變化的情況
+ * @param create
+ * @param deps
+ */
+function updateEffect(create: EffectCallback | void, deps: EffectDeps | void) {
+  // 第一步：找到當前第一個hook
+  const hook = updateWorkInProgressHook();
+  const nextDeps = deps === undefined ? null : deps;
+  let destroy: EffectCallback | void;
+
+  if (currentHook !== null) {
+    const prevEffect = currentHook.memoizedState as Effect;
+    destroy = prevEffect.destroy;
+    if (nextDeps !== null) {
+      const prevDeps = prevEffect.deps;
+
+      // 淺比較,相等的話，代表依賴沒有變化，所以不需要更新
+      if (areHookInputsEqual(nextDeps, prevDeps)) {
+        hook.memoizedState = pushEffect(Passive, create, destroy, nextDeps);
+        return;
+      }
+    }
+    // 淺比較，不相等
+    // 在當前fiber 的 flag 中增加 PassiveEffect
+    (currentlyRenderingFiber as FiberNode).flags |= PassiveEffect;
+    // 標記這個副作用要執行
+    hook.memoizedState = pushEffect(
+      Passive | HookHasEffect,
+      create,
+      destroy,
+      nextDeps
+    );
+  }
+}
+
+/**
+ * 淺比較 舊依賴 和 新依賴有沒有變化
+ * @param newDeps
+ * @param prevDeps
+ * @returns 是否相等
+ */
+function areHookInputsEqual(newDeps: EffectDeps, prevDeps: EffectDeps) {
+  if (newDeps === null || prevDeps === null) {
+    return false;
+  }
+  for (let i = 0; i < newDeps.length && i < prevDeps.length; i++) {
+    if (Object.is(prevDeps[i], newDeps[i])) {
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
+
+/**
+ * 在當前的effect 環狀列表中，插入新的effect
+ * @param hookFlags
+ * @param create
+ * @param destroy
+ * @param deps
+ * @returns
+ */
 function pushEffect(
   hookFlags: Flags,
   create: EffectCallback | void,
