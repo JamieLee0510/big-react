@@ -70,10 +70,14 @@ export function renderWithHooks(wip: FiberNode, lane: Lane) {
 
   const Component = wip.type;
   const props = wip.pendingProps;
+
+  // FC render
   const children = Component(props);
 
   // 重置操作
   currentlyRenderingFiber = null;
+  workInProgressHook = null;
+  currentHook = null;
   renderLane = NoLane;
   return children;
 }
